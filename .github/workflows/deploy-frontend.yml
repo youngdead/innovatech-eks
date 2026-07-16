@@ -1,0 +1,47 @@
+name: Deploy Frontend to EC2 Pública
+
+on:
+  push:
+    branches: [ "deploy" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Deploy Frontend via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            mkdir -p /home/ec2-user/app
+            cd /home/ec2-user/app
+            
+            # Sincronización limpia con Git
+            sudo git config --global --add safe.directory /home/ec2-user/app
+            sudo git fetch origin deploy
+            sudo git reset --hard origin/deploy
+            
+            # 1. Forzar la creación del .env tanto en la raíz como dentro de la carpeta del front
+            cat <<EOF > .env
+            VITE_API_URL_VENTAS=${{ secrets.VITE_API_URL }}
+            VITE_API_URL_DESPACHOS=${{ secrets.VITE_API_URL }}
+            EOF
+            
+            cat <<EOF > front_despacho/.env
+            VITE_API_URL_VENTAS=${{ secrets.VITE_API_URL }}
+            VITE_API_URL_DESPACHOS=${{ secrets.VITE_API_URL }}
+            EOF
+            
+            # Asegurar soporte de construcción
+            sudo docker-buildx install 2>/dev/null || true
+            
+            # 2. DETENER Y ELIMINAR EL CONTENEDOR VIEJO (Para romper la caché de red)
+            sudo docker compose -f docker-compose.front.yml down
+            
+            # 3. LEVANTAR PASANDO LA BANDERA DE RECONSTRUCCIÓN ABSOLUTA
+            sudo docker compose -f docker-compose.front.yml up -d --build --force-recreate
