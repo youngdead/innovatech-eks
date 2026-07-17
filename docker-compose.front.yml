@@ -10,7 +10,7 @@ services:
         - VITE_API_URL_DESPACHOS=${VITE_API_URL_DESPACHOS}
     container_name: app-front-ventas
     ports:
-      - "80:80"
+      - "8085:80"
     restart: always
 
     #va
